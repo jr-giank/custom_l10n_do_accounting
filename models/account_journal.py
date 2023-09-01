@@ -221,3 +221,7 @@ class AccountJournalDocumentType(models.Model):
     company_id = fields.Many2one(
         string="Company", related="journal_id.company_id", readonly=True
     )
+    l10n_do_fiscal_number_sequence = fields.Char(
+        string="Sequence",
+        help="Select the sequence to be used for the fiscal number.",
+    )

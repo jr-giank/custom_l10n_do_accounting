@@ -19,6 +19,7 @@
                               default_order="l10n_latam_document_type_id">
                             <field name="journal_id" invisible="1"/>
                             <field name="l10n_latam_document_type_id"/>
+                            <field name="l10n_do_fiscal_number_sequence"/>
                             <field name="l10n_do_ncf_expiration_date"/>
                         </tree>
                     </field>

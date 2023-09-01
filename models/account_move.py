@@ -896,8 +896,20 @@ class AccountMove(models.Model):
     def _set_next_sequence(self):
         self.ensure_one()
 
+        # User sequence for adding a new manual fiscal number
+        user_sequence = self.env['l10n_do.account.journal.document_type'].search(
+            [('l10n_do_fiscal_number_sequence', '!=' , '')]
+        )
+
         if not self._context.get("is_l10n_do_seq", False):
             return super(AccountMove, self)._set_next_sequence()
+
+        if user_sequence:
+            new_sequence = user_sequence.l10n_do_fiscal_number_sequence
+            self[self._l10n_do_sequence_field] = str(new_sequence)
+            user_sequence = ""  # Reset the field for next time
+            self._compute_split_sequence()
+            return
 
         last_sequence = self._get_last_sequence()
         new = not last_sequence
