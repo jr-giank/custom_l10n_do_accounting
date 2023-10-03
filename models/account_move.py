@@ -896,20 +896,57 @@ class AccountMove(models.Model):
     def _set_next_sequence(self):
         self.ensure_one()
 
-        # User sequence for adding a new manual fiscal number
-        user_sequence = self.env['l10n_do.account.journal.document_type'].search(
-            [('l10n_do_fiscal_number_sequence', '!=' , '')]
-        )
+        # start, end and manual sequence variables  
+        start_range = self.env['l10n_do.account.journal.document_type'].search(
+            [('l10n_do_start_fiscal_number_sequence', '!=', '')]
+        ).l10n_do_start_fiscal_number_sequence
+        end_range = self.env['l10n_do.account.journal.document_type'].search(
+            [('l10n_do_end_fiscal_number_sequence', '!=', '')]
+        ).l10n_do_end_fiscal_number_sequence
+        manual_sequence = self.env['l10n_do.account.journal.document_type'].search(
+            [('l10n_do_manual_fiscal_number_sequence', '!=', '')]
+        ).l10n_do_manual_fiscal_number_sequence
 
         if not self._context.get("is_l10n_do_seq", False):
             return super(AccountMove, self)._set_next_sequence()
 
-        if user_sequence:
-            new_sequence = user_sequence.l10n_do_fiscal_number_sequence
-            self[self._l10n_do_sequence_field] = str(new_sequence)
-            user_sequence = ""  # Reset the field for next time
-            self._compute_split_sequence()
-            return
+        if manual_sequence:
+            check_manual_sequence = 0
+
+            records = self.env['account.move'].search([
+                ('state', '=', 'posted')
+            ])
+
+            for record in records:
+                if record.l10n_latam_document_number == manual_sequence:
+                    check_manual_sequence += 1
+            
+            if check_manual_sequence == 0:
+                if self.state != 'draft':
+                    self[self._l10n_do_sequence_field] = manual_sequence
+                    manual_sequence = ""  # Reset the field for next time
+                    self._compute_split_sequence()
+
+                    reset_manual_sequence = self.env['l10n_do.account.journal.document_type'].search(
+                        [
+                            ('journal_id', '=', self.journal_id.id)
+                        ],
+                        limit=1
+                    )
+                    
+                    reset_manual_sequence.write({'l10n_do_manual_fiscal_number_sequence': False})
+            else:
+            
+                user_manual_sequence = self.env['l10n_do.account.journal.document_type'].search(
+                    [
+                        ('journal_id', '=', self.journal_id.id)
+                    ],
+                    limit=1
+                )
+                
+                # print('USER: ' + user_manual_sequence)
+                user_manual_sequence.write({'l10n_do_manual_fiscal_number_sequence': False})
+                # raise ValidationError(f'Exists an invoice with the fiscal number {manual_sequence}')
 
         last_sequence = self._get_last_sequence()
         new = not last_sequence
@@ -928,11 +965,15 @@ class AccountMove(models.Model):
             or self.state != "draft"
             and not self[self._l10n_do_sequence_field]
         ):
-            self[
-                self._l10n_do_sequence_field
-            ] = self.l10n_latam_document_type_id._format_document_number(
-                format.format(**format_values)
-            )
+            print(f"-------------------{self[self._l10n_do_sequence_field]}-------------------")
+            next_sequence = self.l10n_latam_document_type_id._format_document_number(format.format(**format_values))
+            if start_range or end_range:
+                if next_sequence < start_range or next_sequence > end_range:
+                    raise ValidationError(f'The fiscal number {next_sequence} is not included between {start_range} and {end_range}.')
+                else:
+                    self[self._l10n_do_sequence_field] = next_sequence
+            else:
+                self[self._l10n_do_sequence_field] = next_sequence
         self._compute_split_sequence()
 
     def _get_name_invoice_report(self):

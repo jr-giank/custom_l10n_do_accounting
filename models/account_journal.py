@@ -221,7 +221,81 @@ class AccountJournalDocumentType(models.Model):
     company_id = fields.Many2one(
         string="Company", related="journal_id.company_id", readonly=True
     )
-    l10n_do_fiscal_number_sequence = fields.Char(
-        string="Sequence",
+    l10n_do_start_fiscal_number_sequence = fields.Char(
+        string="Start Range",
+        help="Select the start sequence to be used for the fiscal number.",
+    )
+    l10n_do_end_fiscal_number_sequence = fields.Char(
+        string="End Range",
+        help="Select the end sequence to be used for the fiscal number.",
+    )
+    l10n_do_last_fiscal_number_sequence = fields.Char(
+        string="Last Sequence",
+        compute="_compute_last_fiscal_number",
         help="Select the sequence to be used for the fiscal number.",
     )
+    l10n_do_manual_fiscal_number_sequence = fields.Char(
+        string="Next Sequence",
+        help="Type the sequence to be used for the fiscal number.",
+    )
+
+    @api.depends("journal_id", "l10n_latam_document_type_id")
+    def _compute_last_fiscal_number(self):
+
+        """
+            Take the last fiscal number in account_move (customer invoices) and save it in
+            field l10n_do_last_fiscal_number_sequence
+        """
+
+        for doc_type in self:
+            last_fiscal_number = False
+            if doc_type.journal_id and doc_type.l10n_latam_document_type_id:
+                last_fiscal_number = (
+                    self.env["account.move"]
+                    .search(
+                        [
+                            ("journal_id", "=", doc_type.journal_id.id),
+                            ("l10n_latam_document_type_id", "=", doc_type.l10n_latam_document_type_id.id),
+                            ("state", "=", "posted"),
+                        ],
+                        limit=1,
+                    )
+                    .l10n_latam_document_number
+                )
+            doc_type.l10n_do_last_fiscal_number_sequence = last_fiscal_number
+
+    @api.constrains("l10n_do_manual_fiscal_number_sequence")
+    def _check_manual_fiscal_number_range(self):
+        if(self.l10n_do_manual_fiscal_number_sequence != False) and (self.l10n_do_start_fiscal_number_sequence) and (self.l10n_do_end_fiscal_number_sequence):
+            if (self.l10n_do_manual_fiscal_number_sequence < self.l10n_do_start_fiscal_number_sequence) or (self.l10n_do_manual_fiscal_number_sequence > self.l10n_do_end_fiscal_number_sequence):
+                raise ValidationError("Next sequence must be greater than start range and less than end range.")
+
+    @api.onchange('l10n_do_start_fiscal_number_sequence', 'l10n_do_end_fiscal_number_sequence', 'l10n_do_manual_fiscal_number_sequence')
+    def check_fiscal_number_sequence(self):
+        for record in self:
+            doc_type = self.env['l10n_latam.document.type'].search([('id', '=', record.l10n_latam_document_type_id.id)])
+
+            if record.l10n_do_start_fiscal_number_sequence and doc_type:
+                doc_type._format_document_number(
+                    record.l10n_do_start_fiscal_number_sequence
+                )
+
+            if record.l10n_do_end_fiscal_number_sequence and doc_type:
+                doc_type._format_document_number(
+                    record.l10n_do_end_fiscal_number_sequence
+                )
+
+            if record.l10n_do_manual_fiscal_number_sequence and doc_type:
+                doc_type._format_document_number(
+                    record.l10n_do_manual_fiscal_number_sequence
+                )
+
+    @api.onchange('l10n_do_start_fiscal_number_sequence', 'l10n_do_end_fiscal_number_sequence')
+    def check_start_end_fiscal_number_range(self):
+        if (self.l10n_do_start_fiscal_number_sequence != False) and (self.l10n_do_end_fiscal_number_sequence != False):
+            if self.l10n_do_start_fiscal_number_sequence >= self.l10n_do_end_fiscal_number_sequence:
+                raise ValidationError("End Range must be greater than Start Range.")
+
+        if (self.l10n_do_manual_fiscal_number_sequence != False) and (self.l10n_do_end_fiscal_number_sequence != False):
+            if self.l10n_do_end_fiscal_number_sequence < self.l10n_do_manual_fiscal_number_sequence:
+                raise ValidationError("Next sequence must be greater than start range and less than end range.")
