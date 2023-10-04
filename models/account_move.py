@@ -828,6 +828,35 @@ class AccountMove(models.Model):
             record.l10n_do_sequence_prefix = sequence[:3]
             record.l10n_do_sequence_number = int(matching.group(1) or 0)
 
+            if record.l10n_do_sequence_number != 0:
+                end_sequence = self.env['l10n_do.account.journal.document_type'].search(
+                    [('l10n_do_end_fiscal_number_sequence', '!=', '')]
+                ).l10n_do_end_fiscal_number_sequence
+
+                if end_sequence != False:
+                    match = re.match(regex, end_sequence)
+                    end = int(match.group(1))
+                    sequences_numbers = end - record.l10n_do_sequence_number
+                    message = f"Notice: You only have {sequences_numbers} tax numbers left"
+                    print(f'--------------------Secuencia : {sequences_numbers}------------------')
+                    print(f'--------------------Mensaje : {message}------------------')
+                    return {
+                        'type': 'ir.actions.client',
+                        'tag': 'display_notification',
+                        'params': {
+                            'title': 'Notice',
+                            'message': message,
+                            'sticky': True
+                        }
+                    }
+
+                    # return notification
+
+                    # self.message_post(body=message)
+                    # return {
+                    #     'warning': {'title': 'Notice', 'message': message},
+                    # }
+
     def _get_last_sequence(self, relaxed=False, with_prefix=None, lock=True):
 
         if not self._context.get("is_l10n_do_seq", False):
@@ -965,7 +994,6 @@ class AccountMove(models.Model):
             or self.state != "draft"
             and not self[self._l10n_do_sequence_field]
         ):
-            print(f"-------------------{self[self._l10n_do_sequence_field]}-------------------")
             next_sequence = self.l10n_latam_document_type_id._format_document_number(format.format(**format_values))
             if start_range or end_range:
                 if next_sequence < start_range or next_sequence > end_range:
