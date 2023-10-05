@@ -1,4 +1,5 @@
 import re
+import json
 from psycopg2 import sql
 from werkzeug import urls
 
@@ -814,6 +815,18 @@ class AccountMove(models.Model):
             )
         return where_string, param
 
+    def sequence_alert(self):
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'notification',
+            'params': {
+                'title': 'Info Alert',
+                'text': 'This is an info alert message.',
+                'sticky': True,
+            }
+        }
+
     @api.depends(lambda self: [self._l10n_do_sequence_field])
     def _compute_split_sequence(self):
         super(AccountMove, self)._compute_split_sequence()
@@ -838,24 +851,29 @@ class AccountMove(models.Model):
                     end = int(match.group(1))
                     sequences_numbers = end - record.l10n_do_sequence_number
                     message = f"Notice: You only have {sequences_numbers} tax numbers left"
-                    print(f'--------------------Secuencia : {sequences_numbers}------------------')
-                    print(f'--------------------Mensaje : {message}------------------')
-                    return {
-                        'type': 'ir.actions.client',
-                        'tag': 'display_notification',
-                        'params': {
-                            'title': 'Notice',
-                            'message': message,
-                            'sticky': True
-                        }
-                    }
+                    # print(f'--------------------Secuencia : {sequences_numbers}------------------')
+                    # print(f'--------------------Mensaje : {message}------------------')
+                    
+                    # return {
+                    #     'type': 'ir.actions.client',
+                    #     'name': 'My Info Alert',
+                    #     'tag': 'my_alert',
+                    #     'params': {
+                    #         'title': 'Info Alert',
+                    #         'message': message,
+                    #     }
+                    # }
+                    
+                    # return {
+                    #     'type': 'ir.action.client',
+                    # }
 
                     # return notification
 
-                    # self.message_post(body=message)
-                    # return {
-                    #     'warning': {'title': 'Notice', 'message': message},
-                    # }
+                    self.message_post(body=message)
+                    return {
+                        'warning': {'title': 'Notice', 'message': message},
+                    }
 
     def _get_last_sequence(self, relaxed=False, with_prefix=None, lock=True):
 
