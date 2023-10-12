@@ -238,6 +238,10 @@ class AccountJournalDocumentType(models.Model):
         string="Next Sequence",
         help="Type the sequence to be used for the fiscal number.",
     )
+    l10n_fiscal_numbers_left = fields.Char(
+        string="Alert in",
+        help="Type the number to be used when there is only that amount of sequences left.",
+    )
 
     @api.depends("journal_id", "l10n_latam_document_type_id")
     def _compute_last_fiscal_number(self):
