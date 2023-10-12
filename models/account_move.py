@@ -815,17 +815,8 @@ class AccountMove(models.Model):
             )
         return where_string, param
 
-    def sequence_alert(self):
-        
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'notification',
-            'params': {
-                'title': 'Info Alert',
-                'text': 'This is an info alert message.',
-                'sticky': True,
-            }
-        }
+    def _new_message(self, message):
+        self.message_post(body=message)
 
     @api.depends(lambda self: [self._l10n_do_sequence_field])
     def _compute_split_sequence(self):
@@ -845,35 +836,30 @@ class AccountMove(models.Model):
                 end_sequence = self.env['l10n_do.account.journal.document_type'].search(
                     [('l10n_do_end_fiscal_number_sequence', '!=', '')]
                 ).l10n_do_end_fiscal_number_sequence
+                
+                fiscal_numbers_left = self.env['l10n_do.account.journal.document_type'].search(
+                    [('l10n_do_end_fiscal_number_sequence', '!=', '')]
+                ).l10n_fiscal_numbers_left
 
                 if end_sequence != False:
-                    match = re.match(regex, end_sequence)
-                    end = int(match.group(1))
+                    end_match = re.match(regex, end_sequence)
+                    end = int(end_match.group(1))
+                    fiscal_numbers_match = re.match(regex, fiscal_numbers_left)
+                    fiscal_numbers = int(fiscal_numbers_match.group(1))
+
                     sequences_numbers = end - record.l10n_do_sequence_number
-                    message = f"Notice: You only have {sequences_numbers} tax numbers left"
-                    # print(f'--------------------Secuencia : {sequences_numbers}------------------')
-                    # print(f'--------------------Mensaje : {message}------------------')
-                    
-                    # return {
-                    #     'type': 'ir.actions.client',
-                    #     'name': 'My Info Alert',
-                    #     'tag': 'my_alert',
-                    #     'params': {
-                    #         'title': 'Info Alert',
-                    #         'message': message,
-                    #     }
-                    # }
-                    
-                    # return {
-                    #     'type': 'ir.action.client',
-                    # }
+                    if sequences_numbers == fiscal_numbers:
+                        message = f"Notice: You only have {sequences_numbers} tax numbers left"
 
-                    # return notification
+                        record.message_post(body=message)
 
-                    self.message_post(body=message)
-                    return {
-                        'warning': {'title': 'Notice', 'message': message},
-                    }
+                        email_values = {
+                            'subject': 'Tax Numbers Warning',
+                            'email_to': self.env.user.parent_id.email,
+                            'body_html': message,
+                        }
+                        
+                        self.env['mail.mail'].create(email_values).send()
 
     def _get_last_sequence(self, relaxed=False, with_prefix=None, lock=True):
 
@@ -991,9 +977,7 @@ class AccountMove(models.Model):
                     limit=1
                 )
                 
-                # print('USER: ' + user_manual_sequence)
                 user_manual_sequence.write({'l10n_do_manual_fiscal_number_sequence': False})
-                # raise ValidationError(f'Exists an invoice with the fiscal number {manual_sequence}')
 
         last_sequence = self._get_last_sequence()
         new = not last_sequence
