@@ -833,15 +833,19 @@ class AccountMove(models.Model):
             record.l10n_do_sequence_number = int(matching.group(1) or 0)
 
             if record.l10n_do_sequence_number != 0:
-                end_sequence = self.env['l10n_do.account.journal.document_type'].search(
-                    [('l10n_do_end_fiscal_number_sequence', '!=', '')]
-                ).l10n_do_end_fiscal_number_sequence
-                
-                fiscal_numbers_left = self.env['l10n_do.account.journal.document_type'].search(
-                    [('l10n_do_end_fiscal_number_sequence', '!=', '')]
-                ).l10n_fiscal_numbers_left
 
-                if end_sequence != False:
+                end_sequence, fiscal_numbers_left = False, False
+
+                document_type = self.env['l10n_do.account.journal.document_type'].search(
+                    [('journal_id', '=', self.journal_id.id)],
+                    limit=1
+                )
+
+                if document_type:
+                    end_sequence = document_type.l10n_do_end_fiscal_number_sequence
+                    fiscal_numbers_left = document_type.l10n_fiscal_numbers_left
+
+                if end_sequence != False and fiscal_numbers_left != False:
                     end_match = re.match(regex, end_sequence)
                     end = int(end_match.group(1))
                     fiscal_numbers_match = re.match(regex, fiscal_numbers_left)
@@ -929,16 +933,17 @@ class AccountMove(models.Model):
     def _set_next_sequence(self):
         self.ensure_one()
 
-        # start, end and manual sequence variables  
-        start_range = self.env['l10n_do.account.journal.document_type'].search(
-            [('l10n_do_start_fiscal_number_sequence', '!=', '')]
-        ).l10n_do_start_fiscal_number_sequence
-        end_range = self.env['l10n_do.account.journal.document_type'].search(
-            [('l10n_do_end_fiscal_number_sequence', '!=', '')]
-        ).l10n_do_end_fiscal_number_sequence
-        manual_sequence = self.env['l10n_do.account.journal.document_type'].search(
-            [('l10n_do_manual_fiscal_number_sequence', '!=', '')]
-        ).l10n_do_manual_fiscal_number_sequence
+        start_range, end_range, manual_sequence = None, None, None
+
+        document_type = self.env['l10n_do.account.journal.document_type'].search(
+            [('journal_id', '=', self.journal_id.id)],
+            limit=1
+        )
+        
+        if document_type:
+            start_range = document_type.l10n_do_start_fiscal_number_sequence
+            end_range = document_type.l10n_do_end_fiscal_number_sequence
+            manual_sequence = document_type.l10n_do_manual_fiscal_number_sequence
 
         if not self._context.get("is_l10n_do_seq", False):
             return super(AccountMove, self)._set_next_sequence()
