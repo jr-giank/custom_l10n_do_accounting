@@ -949,42 +949,19 @@ class AccountMove(models.Model):
             return super(AccountMove, self)._set_next_sequence()
 
         if manual_sequence:
-            check_manual_sequence = 0
+            if self.state != 'draft':
+                self[self._l10n_do_sequence_field] = manual_sequence
+                self._compute_split_sequence()
 
-            records = self.env['account.move'].search([
-                ('state', '=', 'posted'),
-                ('journal_id', '=', self.journal_id.id)
-            ])
-
-            for record in records:
-                if record.l10n_latam_document_number == manual_sequence:
-                    check_manual_sequence += 1
-            
-            if check_manual_sequence == 0:
-                if self.state != 'draft':
-                    self[self._l10n_do_sequence_field] = manual_sequence
-                    manual_sequence = ""  # Reset the field for next time
-                    self._compute_split_sequence()
-
-                    reset_manual_sequence = self.env['l10n_do.account.journal.document_type'].search(
-                        [
-                            ('journal_id', '=', self.journal_id.id)
-                        ],
-                        limit=1
-                    )
-                    
-                    reset_manual_sequence.write({'l10n_do_manual_fiscal_number_sequence': False})
-            else:
-            
-                user_manual_sequence = self.env['l10n_do.account.journal.document_type'].search(
+                doc_type = self.env['l10n_do.account.journal.document_type'].search(
                     [
                         ('journal_id', '=', self.journal_id.id)
                     ],
                     limit=1
                 )
                 
-                user_manual_sequence.write({'l10n_do_manual_fiscal_number_sequence': False})
-
+                doc_type.write({'l10n_do_manual_fiscal_number_sequence': False})
+            
         last_sequence = self._get_last_sequence()
         new = not last_sequence
         if new:
@@ -1003,13 +980,18 @@ class AccountMove(models.Model):
             and not self[self._l10n_do_sequence_field]
         ):
             next_sequence = self.l10n_latam_document_type_id._format_document_number(format.format(**format_values))
-            if start_range or end_range:
+            
+            if start_range and end_range:
                 if next_sequence < start_range or next_sequence > end_range:
-                    raise ValidationError(f'The fiscal number {next_sequence} is not included between {start_range} and {end_range}.')
-                else:
-                    self[self._l10n_do_sequence_field] = next_sequence
-            else:
-                self[self._l10n_do_sequence_field] = next_sequence
+                    raise ValidationError(f'The fiscal number {next_sequence} is not included between {start_range} and {end_range}.')                
+            elif start_range:
+                if next_sequence < start_range:
+                    raise ValidationError(f'The fiscal number {next_sequence} must be greater than {start_range}.')                
+            elif end_range:
+                if next_sequence > end_range:
+                    raise ValidationError(f'The fiscal number {next_sequence} must be less than {end_range}.')
+                
+            self[self._l10n_do_sequence_field] = next_sequence
         self._compute_split_sequence()
 
     def _get_name_invoice_report(self):

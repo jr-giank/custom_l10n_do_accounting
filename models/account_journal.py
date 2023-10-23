@@ -270,6 +270,16 @@ class AccountJournalDocumentType(models.Model):
 
     @api.constrains("l10n_do_manual_fiscal_number_sequence")
     def _check_manual_fiscal_number_range(self):
+
+        records = self.env['account.move'].search([
+            ('state', '=', 'posted'),
+            ('journal_id', '=', self.journal_id.id)
+        ])
+        
+        for record in records:
+            if record.l10n_latam_document_number == self.l10n_do_manual_fiscal_number_sequence:
+                raise ValidationError(f"The fiscal number {self.l10n_do_manual_fiscal_number_sequence} has been used.")
+
         if(self.l10n_do_manual_fiscal_number_sequence != False) and (self.l10n_do_start_fiscal_number_sequence) and (self.l10n_do_end_fiscal_number_sequence):
             if (self.l10n_do_manual_fiscal_number_sequence < self.l10n_do_start_fiscal_number_sequence) or (self.l10n_do_manual_fiscal_number_sequence > self.l10n_do_end_fiscal_number_sequence):
                 raise ValidationError("Next sequence must be greater than start range and less than end range.")
@@ -303,3 +313,6 @@ class AccountJournalDocumentType(models.Model):
         if (self.l10n_do_manual_fiscal_number_sequence != False) and (self.l10n_do_end_fiscal_number_sequence != False):
             if self.l10n_do_end_fiscal_number_sequence < self.l10n_do_manual_fiscal_number_sequence:
                 raise ValidationError("Next sequence must be greater than start range and less than end range.")
+
+# Hacer codigo para que no deje colocar una secuencia de comprobante a la hora de next number si ya
+#existe esa secuencia no deje crearla.
