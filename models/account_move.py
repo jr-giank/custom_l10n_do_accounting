@@ -952,7 +952,8 @@ class AccountMove(models.Model):
             check_manual_sequence = 0
 
             records = self.env['account.move'].search([
-                ('state', '=', 'posted')
+                ('state', '=', 'posted'),
+                ('journal_id', '=', self.journal_id.id)
             ])
 
             for record in records:
