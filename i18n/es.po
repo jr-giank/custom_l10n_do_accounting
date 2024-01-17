@@ -1072,7 +1072,7 @@ msgstr ""
 #. module: custom_l10n_do_accounting
 #: model:ir.model.fields,field_description:custom_l10n_do_accounting.field_l10n_do_account_journal_document_type__l10n_do_start_fiscal_number_sequence
 msgid "Start Range"
-msgstr "Rango Inial"
+msgstr "Rango Inicial"
 
 #. module: custom_l10n_do_accounting
 #: model:ir.model.fields,help:custom_l10n_do_accounting.field_account_bank_statement_line__l10n_do_fiscal_number
