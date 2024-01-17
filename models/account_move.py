@@ -936,7 +936,10 @@ class AccountMove(models.Model):
         start_range, end_range, manual_sequence = None, None, None
 
         document_type = self.env['l10n_do.account.journal.document_type'].search(
-            [('journal_id', '=', self.journal_id.id)],
+            [
+                ('journal_id', '=', self.journal_id.id),
+                ('l10n_latam_document_type_id', '=', self.l10n_latam_document_type_id.id)
+            ],
             limit=1
         )
         
@@ -955,7 +958,8 @@ class AccountMove(models.Model):
 
                 doc_type = self.env['l10n_do.account.journal.document_type'].search(
                     [
-                        ('journal_id', '=', self.journal_id.id)
+                        ('journal_id', '=', self.journal_id.id),
+                        ('l10n_latam_document_type_id', '=', self.l10n_latam_document_type_id.id)
                     ],
                     limit=1
                 )
