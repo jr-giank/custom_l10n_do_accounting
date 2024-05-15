@@ -6,7 +6,7 @@ class AccountJournal(models.Model):
     _inherit = "account.journal"
 
     def _get_l10n_do_payment_form(self):
-        """ Return the list of payment forms allowed by DGII. """
+        """Return the list of payment forms allowed by DGII."""
         return [
             ("cash", _("Cash")),
             ("bank", _("Check / Transfer")),
@@ -42,11 +42,8 @@ class AccountJournal(models.Model):
             # create fiscal sequences
             return types_list + ecf_types
 
-        if (
-            invoice.is_purchase_document()
-            and invoice.partner_id.l10n_do_dgii_tax_payer_type
-            and invoice.partner_id.l10n_do_dgii_tax_payer_type
-            in ("non_payer", "foreigner")
+        if invoice.is_purchase_document() and any(
+            t in types_list for t in ("minor", "informal", "exterior")
         ):
             # Return ncf/ecf types depending on company ECF issuing status
             return ecf_types if self.company_id.l10n_do_ecf_issuer else types_list
@@ -117,10 +114,13 @@ class AccountJournal(models.Model):
             )
             return self._get_all_ncf_types(res)
         if counterpart_partner.l10n_do_dgii_tax_payer_type:
-            counterpart_ncf_types = ncf_types_data[
-                "issued" if self.type == "sale" else "received"
-            ][counterpart_partner.l10n_do_dgii_tax_payer_type]
-            ncf_types = list(set(ncf_types) & set(counterpart_ncf_types))
+            if counterpart_partner == self.company_id.partner_id:
+                ncf_types = ["minor"]
+            else:
+                counterpart_ncf_types = ncf_types_data[
+                    "issued" if self.type == "sale" else "received"
+                ][counterpart_partner.l10n_do_dgii_tax_payer_type]
+                ncf_types = list(set(ncf_types) & set(counterpart_ncf_types))
         else:
             raise ValidationError(
                 _("Partner (%s) %s is needed to issue a fiscal invoice")
@@ -188,11 +188,14 @@ class AccountJournal(models.Model):
                 )
             )
 
-    @api.model
-    def create(self, values):
-        res = super().create(values)
-        res._l10n_do_create_document_types()
-        return res
+    @api.model_create_multi
+    def create(self, vals_list):
+        journals = super(AccountJournal, self).create(vals_list)
+
+        for journal in journals:
+            journal._l10n_do_create_document_types()
+
+        return journals
 
     def write(self, values):
         to_check = {"type", "l10n_latam_use_documents"}
@@ -216,103 +219,11 @@ class AccountJournalDocumentType(models.Model):
     l10n_do_ncf_expiration_date = fields.Date(
         string="Expiration date",
         required=True,
-        default=fields.Date.end_of(fields.Date.today(), "year"),
+        default=fields.Date.end_of(
+            fields.Date.today().replace(month=12, year=fields.Date.today().year + 1),
+            "year",
+        ),
     )
     company_id = fields.Many2one(
         string="Company", related="journal_id.company_id", readonly=True
     )
-    l10n_do_start_fiscal_number_sequence = fields.Char(
-        string="Start Range",
-        help="Select the start sequence to be used for the fiscal number.",
-    )
-    l10n_do_end_fiscal_number_sequence = fields.Char(
-        string="End Range",
-        help="Select the end sequence to be used for the fiscal number.",
-    )
-    l10n_do_last_fiscal_number_sequence = fields.Char(
-        string="Last Sequence",
-        compute="_compute_last_fiscal_number",
-        help="Select the sequence to be used for the fiscal number.",
-    )
-    l10n_do_manual_fiscal_number_sequence = fields.Char(
-        string="Next Sequence",
-        help="Type the sequence to be used for the fiscal number.",
-    )
-    l10n_fiscal_numbers_left = fields.Char(
-        string="Alert in",
-        help="Type the number to be used when there is only that amount of sequences left.",
-    )
-
-    @api.depends("journal_id", "l10n_latam_document_type_id")
-    def _compute_last_fiscal_number(self):
-
-        """
-            Take the last fiscal number in account_move (customer invoices) and save it in
-            field l10n_do_last_fiscal_number_sequence
-        """
-
-        for doc_type in self:
-            last_fiscal_number = False
-            if doc_type.journal_id and doc_type.l10n_latam_document_type_id:
-                last_fiscal_number = (
-                    self.env["account.move"]
-                    .search(
-                        [
-                            ("journal_id", "=", doc_type.journal_id.id),
-                            ("l10n_latam_document_type_id", "=", doc_type.l10n_latam_document_type_id.id),
-                            ("state", "=", "posted"),
-                        ],
-                        limit=1,
-                    )
-                    .l10n_latam_document_number
-                )
-            doc_type.l10n_do_last_fiscal_number_sequence = last_fiscal_number
-
-    @api.constrains("l10n_do_manual_fiscal_number_sequence")
-    def _check_manual_fiscal_number_range(self):
-
-        records = self.env['account.move'].search([
-            ('state', '=', 'posted'),
-            ('journal_id', '=', self.journal_id.id)
-        ])
-        
-        for record in records:
-            if record.l10n_latam_document_number == self.l10n_do_manual_fiscal_number_sequence:
-                raise ValidationError(f"The fiscal number {self.l10n_do_manual_fiscal_number_sequence} has been used.")
-
-        if(self.l10n_do_manual_fiscal_number_sequence != False) and (self.l10n_do_start_fiscal_number_sequence) and (self.l10n_do_end_fiscal_number_sequence):
-            if (self.l10n_do_manual_fiscal_number_sequence < self.l10n_do_start_fiscal_number_sequence) or (self.l10n_do_manual_fiscal_number_sequence > self.l10n_do_end_fiscal_number_sequence):
-                raise ValidationError("Next sequence must be greater than start range and less than end range.")
-
-    @api.onchange('l10n_do_start_fiscal_number_sequence', 'l10n_do_end_fiscal_number_sequence', 'l10n_do_manual_fiscal_number_sequence')
-    def check_fiscal_number_sequence(self):
-        for record in self:
-            doc_type = self.env['l10n_latam.document.type'].search([('id', '=', record.l10n_latam_document_type_id.id)])
-
-            if record.l10n_do_start_fiscal_number_sequence and doc_type:
-                doc_type._format_document_number(
-                    record.l10n_do_start_fiscal_number_sequence
-                )
-
-            if record.l10n_do_end_fiscal_number_sequence and doc_type:
-                doc_type._format_document_number(
-                    record.l10n_do_end_fiscal_number_sequence
-                )
-
-            if record.l10n_do_manual_fiscal_number_sequence and doc_type:
-                doc_type._format_document_number(
-                    record.l10n_do_manual_fiscal_number_sequence
-                )
-
-    @api.onchange('l10n_do_start_fiscal_number_sequence', 'l10n_do_end_fiscal_number_sequence')
-    def check_start_end_fiscal_number_range(self):
-        if (self.l10n_do_start_fiscal_number_sequence != False) and (self.l10n_do_end_fiscal_number_sequence != False):
-            if self.l10n_do_start_fiscal_number_sequence >= self.l10n_do_end_fiscal_number_sequence:
-                raise ValidationError("End Range must be greater than Start Range.")
-
-        if (self.l10n_do_manual_fiscal_number_sequence != False) and (self.l10n_do_end_fiscal_number_sequence != False):
-            if self.l10n_do_end_fiscal_number_sequence < self.l10n_do_manual_fiscal_number_sequence:
-                raise ValidationError("Next sequence must be greater than start range and less than end range.")
-
-# Hacer codigo para que no deje colocar una secuencia de comprobante a la hora de next number si ya
-#existe esa secuencia no deje crearla.

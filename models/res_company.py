@@ -21,13 +21,9 @@ class ResCompany(models.Model):
         "to have sales through offline mobile devices such as "
         "sales with Handheld, enter others.",
     )
-    l10n_do_rst_host = fields.Boolean(
-        "Is RST host",
-        help="When activating this field, RST host message appear in invoices.",
-    )
 
     def _localization_use_documents(self):
-        """ Dominican localization uses documents """
+        """Dominican localization uses documents"""
         self.ensure_one()
         return (
             True
