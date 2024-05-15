@@ -9,6 +9,7 @@
                 <field name="is_ecf_invoice" invisible="1"/>
                 <field name="l10n_do_company_in_contingency" invisible="1"/>
                 <field name="l10n_do_enable_first_sequence" invisible="1" force_save="1"/>
+                <field name="l10n_do_show_expiration_date_msg" invisible="1"/>
             </field>
             <xpath expr="//field[@name='tax_lock_date_message']/.." position="after">
                 <div class="alert alert-warning"
@@ -20,16 +21,21 @@
                      ('state', '!=', 'draft')]}">
                     Notice. This company is in a transient state of contingency for Electronic Invoice issuing. NCF issuing has been enabled.
                 </div>
+                <div class="alert alert-warning"
+                     role="alert" style="margin-bottom:0px;"
+                     attrs="{'invisible': ['|', '|', '|',
+                     ('move_type', '=', 'entry'),
+                     ('country_code', '!=', 'DO'),
+                     ('l10n_do_show_expiration_date_msg', '=', False),
+                     ('state', '!=', 'draft')]}">
+                    Notice. Document Number field enabled because a new Fiscal Number Expiration date was set on journal
+                </div>
             </xpath>
-            <xpath expr="//button[@name='button_cancel']" position="attributes">
-                <attribute name="attrs">{
-                    'invisible': ['|', '|',
-                    ('id', '=', False),
-                    '&amp;', ('state', '!=', 'draft'),
-                    ('country_code', '!=', 'DO'),
-                    '&amp;', ('state', 'in', ('draft', 'cancel')),
-                    ('country_code', '=', 'DO')]
-                }</attribute>
+            <xpath expr="//button[@name='button_cancel']" position="after">
+                <button name="button_cancel" type="object" string="Cancel" 
+                        attrs="{'invisible': ['|',
+                        ('state', 'in', ('draft', 'cancel')),
+                        ('country_code', '!=', 'DO')]}"/>
             </xpath>
             <xpath expr="//button[@name='button_draft']" position="attributes">
                 <attribute name="attrs">{
@@ -88,7 +94,7 @@
             <xpath expr="//page[@id='invoice_tab']/field[@name='invoice_line_ids']/tree/field[@name='tax_ids']" position="after">
                 <field name="l10n_do_itbis_amount" invisible="1" force_save="1"/>
             </xpath>
-            <xpath expr="//page[@id='aml_tab']/field[@name='line_ids']/tree/field[@name='payment_id']" position="after">
+            <xpath expr="//page[@id='aml_tab']/field[@name='line_ids']/tree/field[@name='account_type']" position="after">
                 <field name="l10n_do_itbis_amount" invisible="1" force_save="1"/>
             </xpath>
         </field>
